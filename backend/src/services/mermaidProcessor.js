@@ -1,17 +1,68 @@
-const mermaid = require('mermaid');
+const { default: mermaid } = require('mermaid');
 
-// Initialize mermaid
-mermaid.initialize({
+// Configure mermaid for Node.js environment
+const config = {
   startOnLoad: false,
   securityLevel: 'strict',
-  theme: 'default'
-});
+  theme: 'default',
+  flowchart: {
+    htmlLabels: false
+  }
+};
 
 async function processDiagram(mermaidCode) {
   try {
-    // Try to parse the Mermaid code
-    await mermaid.parse(mermaidCode);
+    // Basic syntax validation
+    const lines = mermaidCode.split('\n');
+    const validLines = [];
+    const errorLines = [];
     
+    // Validate the diagram starts with architecture-beta
+    if (!lines[0].trim().startsWith('architecture-beta')) {
+      throw new Error('Diagram must start with architecture-beta');
+    }
+
+    // Validate basic syntax rules
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      try {
+        // Check for basic syntax rules
+        if (line.startsWith('group')) {
+          if (!line.includes('[') || !line.includes(']')) {
+            throw new Error('Invalid group syntax - missing [] brackets');
+          }
+        } else if (line.startsWith('service')) {
+          if (!line.includes('(') || !line.includes(')') || !line.includes('[') || !line.includes(']')) {
+            throw new Error('Invalid service syntax - missing () or [] brackets');
+          }
+        } else if (line.includes('-->')) {
+          if (!line.includes(':')) {
+            throw new Error('Invalid connection syntax - missing direction (:)');
+          }
+        }
+        
+        validLines.push(line);
+      } catch (e) {
+        errorLines.push({
+          line: i + 1,
+          content: line,
+          error: e.message
+        });
+      }
+    }
+
+    if (errorLines.length > 0) {
+      return {
+        success: false,
+        mermaidCode: validLines.join('\n'),
+        error: {
+          message: 'Diagram contains syntax errors',
+          details: errorLines
+        }
+      };
+    }
+
     return {
       success: true,
       mermaidCode,
@@ -19,32 +70,16 @@ async function processDiagram(mermaidCode) {
     };
   } catch (error) {
     console.error('Error processing diagram:', error);
-    
-    // Try to extract valid parts of the diagram
-    const lines = mermaidCode.split('\n');
-    const validLines = [];
-    const errorLines = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-      try {
-        const partialDiagram = lines.slice(0, i + 1).join('\n');
-        await mermaid.parse(partialDiagram);
-        validLines.push(lines[i]);
-      } catch (e) {
-        errorLines.push({
-          line: i + 1,
-          content: lines[i],
-          error: e.message
-        });
-      }
-    }
-    
     return {
       success: false,
-      mermaidCode: validLines.join('\n'),
+      mermaidCode: '',
       error: {
         message: error.message,
-        details: errorLines
+        details: [{
+          line: 1,
+          content: mermaidCode.split('\n')[0],
+          error: error.message
+        }]
       }
     };
   }
