@@ -1,6 +1,6 @@
-const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { BedrockAgentRuntimeClient, InvokeAgentCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
 
-const client = new BedrockRuntimeClient({
+const client = new BedrockAgentRuntimeClient({
   region: process.env.AWS_REGION
 });
 
@@ -29,31 +29,39 @@ Return ONLY the Mermaid code without any additional explanation or markdown form
 async function generateDiagram(text) {
   try {
     const payload = {
-      modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: JSON.stringify({
-        anthropic_version: '2023-01-01',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: CLAUDE_PROMPT.replace('{text}', text)
-        }]
-      })
+      agentId: process.env.BEDROCK_AGENT_ID,
+      agentAliasId: 'LATEST',
+      sessionId: Date.now().toString(),
+      inputText: text
     };
 
-    const command = new InvokeModelCommand(payload);
+    const command = new InvokeAgentCommand(payload);
     const response = await client.send(command);
     
-    // Parse the response
-    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-    const mermaidCode = responseBody.messages[0].content;
+    // Extract the Mermaid code from the agent's response
+    const completion = response.completion;
+    
+    // The agent's response will be formatted with the Mermaid code
+    // and potentially additional explanations. We need to extract just the code.
+    const mermaidCode = extractMermaidCode(completion);
     
     return mermaidCode;
   } catch (error) {
     console.error('Error generating diagram:', error);
     throw new Error('Failed to generate diagram: ' + error.message);
   }
+}
+
+function extractMermaidCode(completion) {
+  // Look for Mermaid code block in the response
+  const mermaidMatch = completion.match(/```mermaid\n([\s\S]*?)```/);
+  if (mermaidMatch && mermaidMatch[1]) {
+    return mermaidMatch[1].trim();
+  }
+  
+  // If no code block found, assume the entire response is Mermaid code
+  // after removing any potential markdown formatting
+  return completion.replace(/```/g, '').trim();
 }
 
 module.exports = {

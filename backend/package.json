@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.496.0",
     "@aws-sdk/client-bedrock-runtime": "^3.496.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
